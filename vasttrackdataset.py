@@ -14,32 +14,25 @@ class VastTrackDataset(BaseDataset):
     def clean_seq_list(self):
         clean_lst = []
         for i in range(len(self.sequence_list)):
-            cls, _ = self.sequence_list[i].split('-')
+            cls = '-'.join(self.sequence_list[i].split('.')[0].split('-')[:-1])
             clean_lst.append(cls)
-        return  clean_lst
+        return clean_lst
 
     def get_sequence_list(self):
         return SequenceList([self._construct_sequence(s) for s in self.sequence_list])
 
     def _construct_sequence(self, sequence_name):
-        class_name = sequence_name.split('-')[0]
-        anno_path = '{}/{}/{}/groundtruth.txt'.format(self.base_path, class_name, sequence_name)
+        class_name = '-'.join(sequence_name.split('.')[0].split('-')[:-1])
+
+        anno_path = '{}/{}/{}/Groundtruth.txt'.format(self.base_path, class_name, sequence_name)
 
         ground_truth_rect = load_text(str(anno_path), delimiter=',', dtype=np.float64)
 
-        occlusion_label_path = '{}/{}/{}/full_occlusion.txt'.format(self.base_path, class_name, sequence_name)
+        target_visible = ~((ground_truth_rect == [0, 0, 0, 0]).all(axis=1))
 
-        # NOTE: pandas backed seems super super slow for loading occlusion/oov masks
-        full_occlusion = load_text(str(occlusion_label_path), delimiter=',', dtype=np.float64, backend='numpy')
+        frames_path = '{}/{}/{}/imgs'.format(self.base_path, class_name, sequence_name)
 
-        out_of_view_label_path = '{}/{}/{}/out_of_view.txt'.format(self.base_path, class_name, sequence_name)
-        out_of_view = load_text(str(out_of_view_label_path), delimiter=',', dtype=np.float64, backend='numpy')
-
-        target_visible = np.logical_and(full_occlusion == 0, out_of_view == 0)
-
-        frames_path = '{}/{}/{}/img'.format(self.base_path, class_name, sequence_name)
-
-        frames_list = ['{}/{:08d}.jpg'.format(frames_path, frame_number) for frame_number in range(1, ground_truth_rect.shape[0] + 1)]
+        frames_list = ['{}/{:05d}.jpg'.format(frames_path, frame_number) for frame_number in range(1, ground_truth_rect.shape[0] + 1)]
 
         target_class = class_name
         return Sequence(sequence_name, frames_list, 'vasttrack', ground_truth_rect.reshape(-1, 4),
